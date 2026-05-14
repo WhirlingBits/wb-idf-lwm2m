@@ -1,0 +1,10 @@
+[wokwi]
+name = "CoAP Client Demo"
+description = "ESP-IDF CoAP Client Demo"
+author = "Whirlingbits"
+version = "1.0.0"
+elf = '../build/wb-lwm2m-example.elf'
+firmware = '../build/wb-lwm2m-example.bin'
+rfc2217ServerPort = 4000
+[net]
+gateway="ws://localhost:9011"

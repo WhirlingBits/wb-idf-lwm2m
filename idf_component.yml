@@ -1,0 +1,3 @@
+dependencies:
+  wb-idf-coap-client:
+    path: ../wb-idf-coap-client

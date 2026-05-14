@@ -1,0 +1,29 @@
+menu "WhirlingBits LWM2M Client"
+
+    config WB_LWM2M_DEFAULT_LIFETIME
+        int "Default registration lifetime (seconds)"
+        default 86400
+        help
+            Default LWM2M registration lifetime in seconds.
+            The client will send periodic Registration Update requests
+            before this expires. Common values: 300 (5min), 3600 (1h), 86400 (24h).
+
+    config WB_LWM2M_DEFAULT_BINDING
+        string "Default binding mode"
+        default "U"
+        help
+            LWM2M binding mode. "U" = UDP, "UQ" = UDP with Queue Mode.
+
+    config WB_LWM2M_DEFAULT_VERSION
+        string "Default LWM2M version"
+        default "1.0"
+        help
+            LWM2M protocol version. Supported: "1.0", "1.1".
+
+    config WB_LWM2M_MAX_OBJECTS
+        int "Maximum number of LWM2M objects"
+        default 16
+        help
+            Maximum number of LWM2M objects that can be registered with the client.
+
+endmenu

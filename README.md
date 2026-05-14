@@ -1,93 +1,164 @@
 # wb-idf-lwm2m
 
+A lightweight OMA LWM2M 1.0 client component for ESP-IDF, built on top of [wb-idf-coap-client](https://gitlab.whirlingbits.de/whirlingbits/wb-idf-coap-client).
 
+## Features
 
-## Getting started
+- **LWM2M Registration Interface** — Register, Update, Deregister with any LWM2M server
+- **Object/Resource Model** — Define LWM2M objects with typed resources and read/write/execute callbacks
+- **Automatic Registration Updates** — Timer-based keepalive at 80% of configured lifetime
+- **SenML-JSON Encoding** — Resource value notifications in standard SenML-JSON format
+- **CoRE Link-Format** — Registration payload per RFC 6690
+- **Security** — Supports plain CoAP, DTLS-PSK, and DTLS-PKI (via wb-idf-coap-client)
+- **Standard Objects** — Predefined constants for Device (/3), Server (/1), Firmware Update (/5) etc.
+- **Compatible** with Leshan, ThingsBoard, and other LWM2M servers
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Dependencies
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.whirlingbits.de/whirlingbits/wb-idf-lwm2m.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-* [Set up project integrations](https://gitlab.whirlingbits.de/whirlingbits/wb-idf-lwm2m/-/settings/integrations)
-
-## Collaborate with your team
-
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- [wb-idf-coap-client](https://gitlab.whirlingbits.de/whirlingbits/wb-idf-coap-client) (CoAP transport layer)
+- ESP-IDF >= 5.0
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Add as an ESP-IDF component. In your project's `idf_component.yml`:
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```yaml
+dependencies:
+  whirlingbits/wb-idf-lwm2m:
+    version: "*"
+    git: https://gitlab.whirlingbits.de/whirlingbits/wb-idf-lwm2m.git
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Or clone into your project's `components/` directory.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## Quick Start
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### 1. Define Objects
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```c
+#include "wb_lwm2m.h"
+#include "wb_lwm2m_object.h"
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+static esp_err_t device_read_cb(uint16_t obj_id, uint16_t inst_id, uint16_t res_id,
+                                wb_lwm2m_value_t *value, void *user_ctx)
+{
+    switch (res_id) {
+    case WB_LWM2M_RES_DEVICE_MANUFACTURER:
+        *value = WB_LWM2M_VALUE_STRING("WhirlingBits");
+        return ESP_OK;
+    case WB_LWM2M_RES_DEVICE_MODEL_NUMBER:
+        *value = WB_LWM2M_VALUE_STRING("ESP32-LWM2M");
+        return ESP_OK;
+    case WB_LWM2M_RES_DEVICE_FW_VERSION:
+        *value = WB_LWM2M_VALUE_STRING("1.0.0");
+        return ESP_OK;
+    default:
+        return ESP_ERR_NOT_FOUND;
+    }
+}
+
+static const wb_lwm2m_object_def_t device_object = {
+    .id = WB_LWM2M_OBJ_DEVICE,
+    .name = "Device",
+    .instances = { { .id = 0 } },
+    .instance_count = 1,
+    .resources = {
+        { .id = 0, .type = WB_LWM2M_RES_TYPE_STRING, .operations = WB_LWM2M_OP_READ, .read_cb = device_read_cb },
+        { .id = 1, .type = WB_LWM2M_RES_TYPE_STRING, .operations = WB_LWM2M_OP_READ, .read_cb = device_read_cb },
+        { .id = 3, .type = WB_LWM2M_RES_TYPE_STRING, .operations = WB_LWM2M_OP_READ, .read_cb = device_read_cb },
+    },
+    .resource_count = 3,
+};
+```
+
+### 2. Create and Start Client
+
+```c
+wb_lwm2m_client_config_t config = {
+    .server_uri = "coap://leshan.eclipseprojects.io:5683",
+    .endpoint_name = "my-esp32-device",
+    .lifetime = 300,
+    .security = WB_COAP_SECURITY_NONE,
+    .event_handler = my_event_handler,
+};
+
+wb_lwm2m_client_handle_t lwm2m = wb_lwm2m_init(&config);
+wb_lwm2m_add_object(lwm2m, &device_object);
+wb_lwm2m_start(lwm2m);
+```
+
+### 3. Send Notifications
+
+```c
+/* Notify server about a changed resource */
+wb_lwm2m_notify(lwm2m, WB_LWM2M_OBJ_DEVICE, 0, WB_LWM2M_RES_DEVICE_MEMORY_FREE);
+```
+
+## ThingsBoard Integration
+
+For ThingsBoard's LWM2M device integration:
+
+```c
+wb_lwm2m_client_config_t config = {
+    .server_uri = "coap://YOUR_TB_HOST:5685",
+    .endpoint_name = "YOUR_DEVICE_ENDPOINT",  /* Must match the TB device profile */
+    .lifetime = 300,
+    .lwm2m_version = "1.0",
+    .security = WB_COAP_SECURITY_PSK,
+    .psk = {
+        .identity = "YOUR_DEVICE_ENDPOINT",
+        .key = psk_key_bytes,
+        .key_len = sizeof(psk_key_bytes),
+    },
+    .event_handler = my_event_handler,
+};
+```
+
+> **Note**: The objects registered here must match the LWM2M Device Profile
+> configured in ThingsBoard.
+
+## API Reference
+
+| Function | Description |
+|----------|-------------|
+| `wb_lwm2m_init()` | Create client instance |
+| `wb_lwm2m_add_object()` | Register an LWM2M object (before start) |
+| `wb_lwm2m_start()` | Connect and register with server |
+| `wb_lwm2m_update_registration()` | Manually trigger registration update |
+| `wb_lwm2m_notify()` | Send resource value notification |
+| `wb_lwm2m_stop()` | Deregister and disconnect |
+| `wb_lwm2m_destroy()` | Free all resources |
+| `wb_lwm2m_is_registered()` | Check registration state |
+| `wb_lwm2m_get_state()` | Get detailed client state |
+
+## Architecture
+
+```
+┌──────────────────────────────────────┐
+│           User Application           │
+├──────────────────────────────────────┤
+│  wb-idf-lwm2m                        │
+│  ├── Object/Resource Model           │
+│  ├── Registration Interface          │
+│  ├── Link-Format / SenML Encoding    │
+│  └── Lifecycle Management            │
+├──────────────────────────────────────┤
+│  wb-idf-coap-client                  │
+│  └── GET / POST / PUT / DELETE       │
+│  └── Observe / DTLS-PSK / DTLS-PKI  │
+├──────────────────────────────────────┤
+│  libcoap (espressif/coap)            │
+├──────────────────────────────────────┤
+│  ESP-IDF (lwIP, mbedTLS, FreeRTOS)   │
+└──────────────────────────────────────┘
+```
+
+## Limitations
+
+- **Client-initiated only**: Since wb-idf-coap-client is a CoAP client wrapper, server-initiated Read/Write/Execute requests (where the LWM2M server sends CoAP requests to the device) are not yet supported. Extending this would require CoAP server capabilities on the device side.
+- **No Bootstrap**: LWM2M Bootstrap interface is not implemented.
+- **No Block-wise OTA**: Firmware Update object execution is application-level only.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Apache-2.0
