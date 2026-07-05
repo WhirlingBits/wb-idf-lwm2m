@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doxygenlayout version="1.0">
+  <!-- Navigation Index for wb-idf-lwm2m -->
+  <navindex>
+    <!-- Main Page (Overview / Quick Start) -->
+    <tab type="mainpage" visible="yes" title="Overview"/>
+
+    <!-- LWM2M Client Lifecycle -->
+    <tab type="user" url="@ref wb_lwm2m" title="LWM2M Client">
+      <tab type="user" url="@ref wb_lwm2m" title="Init / Start / Stop"/>
+    </tab>
+
+    <!-- Object Model -->
+    <tab type="user" url="@ref wb_lwm2m_object" title="Object Model">
+      <tab type="user" url="@ref wb_lwm2m_object" title="Definitions &amp; Macros"/>
+    </tab>
+
+    <!-- Standard Objects -->
+    <tab type="user" url="@ref wb_lwm2m_std_objects" title="Standard Objects">
+      <tab type="user" url="@ref wb_lwm2m_std_objects" title="Security / Server / Device / Firmware"/>
+    </tab>
+
+    <!-- Encoding -->
+    <tab type="user" url="@ref wb_lwm2m_encode" title="Encoding">
+      <tab type="user" url="@ref wb_lwm2m_encode" title="Link-Format &amp; SenML-JSON"/>
+      <tab type="user" url="@ref wb_lwm2m_tlv" title="TLV Encoder / Decoder"/>
+    </tab>
+
+  </navindex>
+
+  <!-- Layout for Group pages (API documentation) -->
+  <group>
+    <briefdescription visible="yes"/>
+    <groupgraph visible="yes"/>
+    <detaileddescription title=""/>
+    <memberdecl>
+      <nestedgroups visible="yes" title="Sub-Modules"/>
+      <dirs visible="no"/>
+      <files visible="no"/>
+      <namespaces visible="no"/>
+      <classes visible="yes" title=""/>
+      <defines title="Macros"/>
+      <typedefs title="Type Definitions"/>
+      <enums title="Enumerations"/>
+      <enumvalues title="Enumerator Values"/>
+      <functions title="Functions"/>
+      <variables title="Variables"/>
+    </memberdecl>
+    <memberdef>
+      <defines title="Macro Documentation"/>
+      <typedefs title="Typedef Documentation"/>
+      <enums title="Enumeration Documentation"/>
+      <enumvalues title="Enumerator Documentation"/>
+      <functions title="Function Documentation"/>
+      <variables title="Variable Documentation"/>
+    </memberdef>
+  </group>
+
+  <!-- Layout for Class pages (structs in C) -->
+  <class>
+    <briefdescription visible="yes"/>
+    <detaileddescription title=""/>
+    <includes visible="yes"/>
+    <inheritancegraph visible="no"/>
+    <collaborationgraph visible="no"/>
+    <memberdecl>
+      <nestedclasses visible="yes" title=""/>
+      <publictypes title="Public Types"/>
+      <publicmethods title="Public Methods"/>
+      <publicattributes title="Fields"/>
+    </memberdecl>
+    <memberdef>
+      <typedefs title=""/>
+      <functions title=""/>
+      <variables title=""/>
+    </memberdef>
+  </class>
+
+  <!-- Layout for File pages -->
+  <file>
+    <briefdescription visible="yes"/>
+    <detaileddescription title=""/>
+    <includes visible="yes"/>
+    <includegraph visible="no"/>
+    <includedbygraph visible="no"/>
+    <sourcelink visible="no"/>
+    <memberdecl>
+      <defines title=""/>
+      <typedefs title=""/>
+      <enums title=""/>
+      <functions title=""/>
+      <variables title=""/>
+    </memberdecl>
+    <memberdef>
+      <defines title=""/>
+      <typedefs title=""/>
+      <enums title=""/>
+      <functions title=""/>
+      <variables title=""/>
+    </memberdef>
+  </file>
+</doxygenlayout>
