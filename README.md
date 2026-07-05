@@ -15,7 +15,7 @@ A lightweight OMA LWM2M 1.0 client component for ESP-IDF, built on top of [wb-id
 
 ## Dependencies
 
-- [wb-idf-coap-client](https://gitlab.whirlingbits.de/whirlingbits/wb-idf-coap-client) (CoAP transport layer)
+- [wb-idf-coap-client](https://github.com/WhirlingBits/wb-idf-coap-client) (CoAP transport layer)
 - ESP-IDF >= 5.0
 
 ## Installation
@@ -26,7 +26,7 @@ Add as an ESP-IDF component. In your project's `idf_component.yml`:
 dependencies:
   whirlingbits/wb-idf-lwm2m:
     version: "*"
-    git: https://gitlab.whirlingbits.de/whirlingbits/wb-idf-lwm2m.git
+    git: https://github.com/WhirlingBits/wb-idf-lwm2m.git
 ```
 
 Or clone into your project's `components/` directory.
