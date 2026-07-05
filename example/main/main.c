@@ -14,6 +14,9 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -29,10 +32,75 @@
 #include "wb_lwm2m_object.h"
 #include "wb_lwm2m_std_objects.h"
 
-extern const uint8_t server_cert_pem_start[] asm("_binary_certificate_pem_start");
-extern const uint8_t server_cert_pem_end[]   asm("_binary_certificate_pem_end");
-
 static const char *TAG = "LWM2M_EXAMPLE";
+
+static const char *default_wifi_ssid = CONFIG_EXAMPLE_WIFI_SSID;
+static const char *default_wifi_password = CONFIG_EXAMPLE_WIFI_PASSWORD;
+static const char *default_server_uri = CONFIG_EXAMPLE_LWM2M_SERVER_URI;
+static const char *default_endpoint_name = CONFIG_EXAMPLE_LWM2M_ENDPOINT_NAME;
+static const uint32_t default_lifetime = CONFIG_EXAMPLE_LWM2M_LIFETIME;
+static const char *default_psk_identity = CONFIG_EXAMPLE_LWM2M_PSK_IDENTITY;
+static const char *default_psk_key_hex = CONFIG_EXAMPLE_LWM2M_PSK_KEY_HEX;
+
+#define PSK_KEY_MAX_LEN 64
+
+static bool hex_nibble(char c, uint8_t *out)
+{
+    if (c >= '0' && c <= '9') {
+        *out = (uint8_t)(c - '0');
+        return true;
+    }
+    if (c >= 'a' && c <= 'f') {
+        *out = (uint8_t)(c - 'a' + 10);
+        return true;
+    }
+    if (c >= 'A' && c <= 'F') {
+        *out = (uint8_t)(c - 'A' + 10);
+        return true;
+    }
+    return false;
+}
+
+static esp_err_t load_psk_key_from_kconfig(uint8_t *key_out, size_t key_out_size, size_t *key_out_len)
+{
+    if (key_out == NULL || key_out_len == NULL || default_psk_key_hex == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t hex_len = strlen(default_psk_key_hex);
+    if (hex_len == 0 || (hex_len % 2) != 0) {
+        ESP_LOGE(TAG, "CONFIG_EXAMPLE_LWM2M_PSK_KEY_HEX must contain an even number of hex chars");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t key_len = hex_len / 2;
+    if (key_len > key_out_size) {
+        ESP_LOGE(TAG, "PSK key too long (%u bytes, max %u)", (unsigned)key_len, (unsigned)key_out_size);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    for (size_t i = 0; i < key_len; ++i) {
+        uint8_t hi = 0;
+        uint8_t lo = 0;
+        if (!hex_nibble(default_psk_key_hex[i * 2], &hi) || !hex_nibble(default_psk_key_hex[i * 2 + 1], &lo)) {
+            ESP_LOGE(TAG, "Invalid hex character in CONFIG_EXAMPLE_LWM2M_PSK_KEY_HEX at index %u", (unsigned)(i * 2));
+            return ESP_ERR_INVALID_ARG;
+        }
+        key_out[i] = (uint8_t)((hi << 4) | lo);
+    }
+
+    *key_out_len = key_len;
+    return ESP_OK;
+}
+
+static void log_psk_debug(const uint8_t *key, size_t key_len)
+{
+    ESP_LOGI(TAG, "PSK debug: identity='%s' (len=%u)",
+             default_psk_identity ? default_psk_identity : "",
+             (unsigned)(default_psk_identity ? strlen(default_psk_identity) : 0));
+    ESP_LOGI(TAG, "PSK debug: key hex length from Kconfig=%u", (unsigned)strlen(default_psk_key_hex));
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, key, key_len, ESP_LOG_INFO);
+}
 
 /* ── WiFi ── */
 
@@ -72,8 +140,8 @@ static void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_cfg));
 
     esp_event_handler_instance_t instance_any_id;
     esp_event_handler_instance_t instance_got_ip;
@@ -84,10 +152,22 @@ static void wifi_init_sta(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = CONFIG_EXAMPLE_WIFI_SSID,
-            .password = CONFIG_EXAMPLE_WIFI_PASSWORD,
+            .ssid = {0},
+            .password = {0},
         },
     };
+
+    size_t ssid_len = strlen(default_wifi_ssid);
+    size_t password_len = strlen(default_wifi_password);
+    if (ssid_len > sizeof(wifi_config.sta.ssid)) {
+        ssid_len = sizeof(wifi_config.sta.ssid);
+    }
+    if (password_len > sizeof(wifi_config.sta.password)) {
+        password_len = sizeof(wifi_config.sta.password);
+    }
+    memcpy(wifi_config.sta.ssid, default_wifi_ssid, ssid_len);
+    memcpy(wifi_config.sta.password, default_wifi_password, password_len);
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -102,21 +182,6 @@ static void wifi_init_sta(void)
         ESP_LOGE(TAG, "WiFi connection failed");
     }
 }
-
-/* ── Configuration — adjust these to your setup ── */
-
-#define LWM2M_SERVER_URI      "coaps://thingsboard.whirlingbits.de:5686"
-#define LWM2M_ENDPOINT_NAME   "test1"
-#define LWM2M_LIFETIME        300   /* 5 minutes */
-
-/* PSK credentials — RFC 4279 hex key */
-static const char *psk_identity = "test1";
-static const uint8_t psk_key[] = {
-    0xb6, 0x45, 0x39, 0x86, 0xe8, 0x90, 0x04, 0xcd,
-    0x6d, 0x61, 0x59, 0xc1, 0xfe, 0x17, 0xbe, 0xbe,
-    0x00, 0x08, 0xec, 0x8e, 0x89, 0x14, 0xac, 0xfb,
-    0xeb, 0xb1, 0xfe, 0x82, 0x87, 0x9d, 0x87, 0xc5,
-};
 
 /* ── Execute Callbacks ── */
 
@@ -133,6 +198,93 @@ static esp_err_t factory_reset_cb(uint16_t obj_id, uint16_t inst_id, uint16_t re
 {
     ESP_LOGW(TAG, "Factory reset requested by server!");
     nvs_flash_erase();
+    esp_restart();
+    return ESP_OK;
+}
+
+/* ── Firmware Update State ── */
+
+static wb_lwm2m_fw_state_t fw_state = WB_LWM2M_FW_STATE_IDLE;
+static wb_lwm2m_fw_update_result_t fw_result = WB_LWM2M_FW_RESULT_DEFAULT;
+static char fw_package_uri[256] = {0};
+static char fw_package_name[64] = "iot-firmware";
+static char fw_package_version[32] = "1.0.0";
+
+static esp_err_t fw_read_cb(uint16_t obj_id, uint16_t inst_id, uint16_t res_id,
+                            wb_lwm2m_value_t *value, void *user_ctx)
+{
+    switch (res_id) {
+    case WB_LWM2M_RES_FW_STATE:
+        *value = WB_LWM2M_VALUE_INT((int)fw_state);
+        return ESP_OK;
+    case WB_LWM2M_RES_FW_UPDATE_RESULT:
+        *value = WB_LWM2M_VALUE_INT((int)fw_result);
+        return ESP_OK;
+    case WB_LWM2M_RES_FW_PKG_NAME:
+        *value = WB_LWM2M_VALUE_STRING(fw_package_name);
+        return ESP_OK;
+    case WB_LWM2M_RES_FW_PKG_VERSION:
+        *value = WB_LWM2M_VALUE_STRING(fw_package_version);
+        return ESP_OK;
+    case WB_LWM2M_RES_FW_PACKAGE_URI:
+        *value = WB_LWM2M_VALUE_STRING(fw_package_uri);
+        return ESP_OK;
+    case WB_LWM2M_RES_FW_DELIVERY_METHOD:
+        *value = WB_LWM2M_VALUE_INT(1);
+        return ESP_OK;
+    default:
+        return ESP_ERR_NOT_FOUND;
+    }
+}
+
+static esp_err_t fw_write_cb(uint16_t obj_id, uint16_t inst_id, uint16_t res_id,
+                             const wb_lwm2m_value_t *value, void *user_ctx)
+{
+    if (res_id == WB_LWM2M_RES_FW_PACKAGE_URI) {
+        if (value == NULL || value->type != WB_LWM2M_RES_TYPE_STRING || value->str_val.str == NULL) {
+            ESP_LOGE(TAG, "OTA: Invalid firmware URI write payload");
+            fw_result = WB_LWM2M_FW_RESULT_INVALID_URI;
+            return ESP_ERR_INVALID_ARG;
+        }
+
+        size_t uri_len = value->str_val.len;
+        if (uri_len >= sizeof(fw_package_uri)) {
+            uri_len = sizeof(fw_package_uri) - 1;
+        }
+        memcpy(fw_package_uri, value->str_val.str, uri_len);
+        fw_package_uri[uri_len] = '\0';
+
+        ESP_LOGI(TAG, "OTA: Received firmware URI: %s", fw_package_uri);
+        if (fw_package_uri[0]) {
+            fw_state = WB_LWM2M_FW_STATE_DOWNLOADING;
+            fw_result = WB_LWM2M_FW_RESULT_DEFAULT;
+            ESP_LOGI(TAG, "OTA: State -> DOWNLOADING");
+            fw_state = WB_LWM2M_FW_STATE_DOWNLOADED;
+            ESP_LOGI(TAG, "OTA: State -> DOWNLOADED (simulated)");
+        } else {
+            fw_result = WB_LWM2M_FW_RESULT_INVALID_URI;
+            return ESP_ERR_INVALID_ARG;
+        }
+        return ESP_OK;
+    }
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+static esp_err_t fw_update_cb(uint16_t obj_id, uint16_t inst_id, uint16_t res_id,
+                              const uint8_t *args, size_t args_len, void *user_ctx)
+{
+    ESP_LOGW(TAG, "OTA: Update Execute triggered by server!");
+    if (fw_state != WB_LWM2M_FW_STATE_DOWNLOADED) {
+        ESP_LOGE(TAG, "OTA: Cannot update - not in DOWNLOADED state (current=%d)", fw_state);
+        fw_result = WB_LWM2M_FW_RESULT_UPDATE_FAILED;
+        return ESP_FAIL;
+    }
+    fw_state = WB_LWM2M_FW_STATE_UPDATING;
+    ESP_LOGI(TAG, "OTA: State -> UPDATING");
+    fw_result = WB_LWM2M_FW_RESULT_SUCCESS;
+    fw_state = WB_LWM2M_FW_STATE_IDLE;
+    ESP_LOGI(TAG, "OTA: Update complete (simulated). Rebooting...");
+    vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
     return ESP_OK;
 }
@@ -172,41 +324,46 @@ static void lwm2m_event_handler(wb_lwm2m_event_t *event, void *user_ctx)
 
 void app_main(void)
 {
-    /* Initialize NVS (required for WiFi/networking) */
+    uint8_t psk_key[PSK_KEY_MAX_LEN] = {0};
+    size_t psk_key_len = 0;
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
     }
 
-    /* Connect to WiFi */
+    ESP_ERROR_CHECK(load_psk_key_from_kconfig(psk_key, sizeof(psk_key), &psk_key_len));
+
+    ESP_LOGI(TAG, "Using WiFi SSID: %s", default_wifi_ssid);
+    ESP_LOGI(TAG, "Using LwM2M server URI: %s", default_server_uri);
+    ESP_LOGI(TAG, "Using LwM2M endpoint: %s", default_endpoint_name);
+    ESP_LOGI(TAG, "Using PSK identity: %s", default_psk_identity);
+    ESP_LOGI(TAG, "Using PSK key length: %u bytes", (unsigned)psk_key_len);
+    log_psk_debug(psk_key, psk_key_len);
+
     wifi_init_sta();
 
-    /* ── Create standard LWM2M objects using factory functions ── */
-
-    /* Security Object /0/0 — PSK */
     wb_lwm2m_object_def_t *security_obj = wb_lwm2m_create_security_object(
         &(wb_lwm2m_security_info_t){
-            .server_uri = LWM2M_SERVER_URI,
+            .server_uri = default_server_uri,
             .is_bootstrap = false,
             .mode = WB_LWM2M_SEC_MODE_PSK,
             .short_server_id = 1,
-            .pub_key_identity = (const uint8_t *)psk_identity,
-            .pub_key_identity_len = strlen(psk_identity),
+            .pub_key_identity = (const uint8_t *)default_psk_identity,
+            .pub_key_identity_len = strlen(default_psk_identity),
             .secret_key = psk_key,
-            .secret_key_len = sizeof(psk_key),
+            .secret_key_len = psk_key_len,
         }, 0);
 
-    /* Server Object /1/0 */
     wb_lwm2m_object_def_t *server_obj = wb_lwm2m_create_server_object(
         &(wb_lwm2m_server_info_t){
             .short_server_id = 1,
-            .lifetime = LWM2M_LIFETIME,
+            .lifetime = default_lifetime,
             .binding = "U",
             .notification_storing = false,
         }, 0, NULL, NULL, NULL);
 
-    /* Device Object /3/0 — all standard resources auto-wired */
     wb_lwm2m_object_def_t *device_obj = wb_lwm2m_create_device_object(
         &(wb_lwm2m_device_info_t){
             .manufacturer      = "WhirlingBits",
@@ -223,18 +380,24 @@ void app_main(void)
             .factory_reset_cb  = factory_reset_cb,
         }, NULL);
 
-    /* Create LWM2M client */
+    wb_lwm2m_object_def_t *firmware_obj = wb_lwm2m_create_firmware_object(
+        &(wb_lwm2m_firmware_info_t){
+            .read_cb   = fw_read_cb,
+            .write_cb  = fw_write_cb,
+            .update_cb = fw_update_cb,
+        }, NULL);
+
     wb_lwm2m_client_config_t config = {
-        .server_uri = LWM2M_SERVER_URI,
-        .endpoint_name = LWM2M_ENDPOINT_NAME,
-        .lifetime = LWM2M_LIFETIME,
+        .server_uri = default_server_uri,
+        .endpoint_name = default_endpoint_name,
+        .lifetime = default_lifetime,
         .binding = "U",
         .lwm2m_version = "1.0",
         .security = WB_COAP_SECURITY_PSK,
         .psk = {
-            .identity = psk_identity,
+            .identity = default_psk_identity,
             .key = psk_key,
-            .key_len = sizeof(psk_key),
+            .key_len = psk_key_len,
         },
         .event_handler = lwm2m_event_handler,
         .user_ctx = NULL,
@@ -246,12 +409,11 @@ void app_main(void)
         return;
     }
 
-    /* Register standard objects */
     if (security_obj) wb_lwm2m_add_object(lwm2m, security_obj);
     if (server_obj)   wb_lwm2m_add_object(lwm2m, server_obj);
     if (device_obj)   wb_lwm2m_add_object(lwm2m, device_obj);
+    if (firmware_obj) wb_lwm2m_add_object(lwm2m, firmware_obj);
 
-    /* Start the LWM2M client (connects + registers) */
     ret = wb_lwm2m_start(lwm2m);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start LWM2M client: %s", esp_err_to_name(ret));
@@ -259,7 +421,6 @@ void app_main(void)
         return;
     }
 
-    /* Main loop: periodically send notifications */
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(30000));
 
@@ -270,9 +431,9 @@ void app_main(void)
         }
     }
 
-    /* Cleanup (unreachable in this example) */
     wb_lwm2m_destroy(lwm2m);
     wb_lwm2m_destroy_std_object(security_obj);
     wb_lwm2m_destroy_std_object(server_obj);
     wb_lwm2m_destroy_std_object(device_obj);
+    wb_lwm2m_destroy_std_object(firmware_obj);
 }

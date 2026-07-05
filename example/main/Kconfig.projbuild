@@ -12,4 +12,41 @@ menu "Example Configuration"
         help
             WiFi password (WPA2). Leave empty for open networks.
 
+    config EXAMPLE_LWM2M_SERVER_URI
+        string "LwM2M Server URI"
+        default "coaps://iot.whirlingbits.de:5684"
+        help
+            LwM2M server URI, e.g. coap://host:5683 or coaps://host:5684.
+
+    config EXAMPLE_LWM2M_ENDPOINT_NAME
+        string "LwM2M Endpoint Name"
+        default "test"
+        help
+            Endpoint name (ep query parameter during registration).
+
+    config EXAMPLE_LWM2M_LIFETIME
+        int "LwM2M Lifetime (seconds)"
+        range 60 86400
+        default 300
+        help
+            Registration lifetime sent to the server.
+
+    config EXAMPLE_LWM2M_PSK_IDENTITY
+        string "DTLS PSK Identity"
+        default "test"
+        help
+            PSK identity string expected by the LwM2M server.
+
+    config EXAMPLE_LWM2M_PSK_KEY_HEX
+        string "DTLS PSK Key (hex)"
+        default "b6453986e89004cd6d6159c1fe17bebe0008ec8e8914acfbebb1fe82879d87c5"
+        help
+            PSK key as hex string without 0x prefix or separators.
+
+    config EXAMPLE_NVS_NAMESPACE
+        string "NVS namespace for runtime overrides"
+        default "lwm2m"
+        help
+            NVS namespace used to override the Kconfig defaults at runtime.
+
 endmenu
