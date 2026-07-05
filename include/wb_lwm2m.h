@@ -6,6 +6,65 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @defgroup wb_lwm2m Client Lifecycle
+ * @brief LWM2M client initialization, registration, and runtime management
+ *
+ * This module provides the top-level API for the wb-idf-lwm2m component.
+ * It manages the full client lifecycle:
+ *
+ * 1. **Init** — Allocate resources, create internal CoAP client
+ * 2. **Add Objects** — Register LWM2M object definitions
+ * 3. **Start** — Connect to server, send Registration request
+ * 4. **Runtime** — Automatic registration updates, notify on value changes
+ * 5. **Stop** — Deregister from server, tear down CoAP session
+ * 6. **Destroy** — Free all allocated resources
+ *
+ * ### Client State Machine
+ *
+ * | State | Description |
+ * |-------|-------------|
+ * | IDLE | Created but not started |
+ * | CONNECTING | CoAP session being established |
+ * | REGISTERING | Registration request sent, awaiting response |
+ * | REGISTERED | Successfully registered with server |
+ * | UPDATING | Registration update in progress |
+ * | DEREGISTERING | Deregistration request sent |
+ * | ERROR | Unrecoverable error occurred |
+ *
+ * ### Event Handling
+ *
+ * All lifecycle events are delivered through a user-provided callback
+ * (`wb_lwm2m_event_handler_t`). The callback is invoked from the internal
+ * CoAP processing task — avoid blocking operations inside it.
+ *
+ * ### Thread Safety
+ *
+ * - wb_lwm2m_notify(), wb_lwm2m_is_registered(), wb_lwm2m_get_state()
+ *   are thread-safe and may be called from any FreeRTOS task.
+ * - wb_lwm2m_add_object() must only be called before wb_lwm2m_start().
+ * - wb_lwm2m_start() / wb_lwm2m_stop() / wb_lwm2m_destroy() must not
+ *   be called concurrently.
+ *
+ * ### Example
+ *
+ * @code{.c}
+ * wb_lwm2m_client_handle_t client = wb_lwm2m_init(&config);
+ * wb_lwm2m_add_object(client, security_obj);
+ * wb_lwm2m_add_object(client, server_obj);
+ * wb_lwm2m_add_object(client, device_obj);
+ * wb_lwm2m_start(client);
+ *
+ * // ... application loop ...
+ * wb_lwm2m_notify(client, 3, 0, 10); // notify free memory change
+ *
+ * wb_lwm2m_stop(client);
+ * wb_lwm2m_destroy(client);
+ * @endcode
+ *
+ * @{
+ */
+
 #ifndef __WB_LWM2M_H__
 #define __WB_LWM2M_H__
 
@@ -20,7 +79,12 @@
 extern "C" {
 #endif
 
-/* ── LWM2M Client State ── */
+/**
+ * @brief LWM2M client state enumeration
+ *
+ * Reflects the current phase of the client lifecycle.
+ * Query with wb_lwm2m_get_state().
+ */
 
 typedef enum {
     WB_LWM2M_STATE_IDLE,
@@ -32,7 +96,11 @@ typedef enum {
     WB_LWM2M_STATE_ERROR,
 } wb_lwm2m_state_t;
 
-/* ── LWM2M Events ── */
+/**
+ * @brief LWM2M event type enumeration
+ *
+ * Events delivered to the user callback during client operation.
+ */
 
 typedef enum {
     WB_LWM2M_EVENT_CONNECTED,       /**< CoAP session established */
@@ -45,6 +113,12 @@ typedef enum {
     WB_LWM2M_EVENT_ERROR,           /**< Generic error */
 } wb_lwm2m_event_type_t;
 
+/**
+ * @brief LWM2M event data passed to the user callback
+ *
+ * Contains the event type and optional event-specific payload.
+ * The pointer is valid only for the duration of the callback invocation.
+ */
 typedef struct {
     wb_lwm2m_event_type_t type;
     const void *data;    /**< Event-specific data (may be NULL) */
@@ -53,10 +127,21 @@ typedef struct {
 
 /**
  * @brief User event handler callback
+ *
+ * Called from the internal CoAP task when a lifecycle event occurs.
+ * Avoid blocking operations inside this callback.
+ *
+ * @param event     Event data (valid only during callback invocation)
+ * @param user_ctx  User context pointer from wb_lwm2m_client_config_t
  */
 typedef void (*wb_lwm2m_event_handler_t)(wb_lwm2m_event_t *event, void *user_ctx);
 
-/* ── LWM2M Client Configuration ── */
+/**
+ * @brief LWM2M client configuration
+ *
+ * Passed to wb_lwm2m_init() to configure server connection, security,
+ * and task parameters.
+ */
 
 typedef struct {
     const char *server_uri;             /**< LWM2M server URI, e.g. "coap://leshan.eclipseprojects.io:5683" */
@@ -79,10 +164,14 @@ typedef struct {
     uint8_t task_priority;              /**< Task priority (default: 5) */
 } wb_lwm2m_client_config_t;
 
-/* Opaque client handle */
+/**
+ * @brief Opaque client handle
+ *
+ * Returned by wb_lwm2m_init() and passed to all other API functions.
+ */
 typedef struct wb_lwm2m_client *wb_lwm2m_client_handle_t;
 
-/* ── Public API ── */
+/* ── Public API ────────────────────────────────────────────────────────── */
 
 /**
  * @brief Create an LWM2M client instance
@@ -182,5 +271,7 @@ bool wb_lwm2m_is_registered(wb_lwm2m_client_handle_t client);
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */ /* end of wb_lwm2m group */
 
 #endif /* __WB_LWM2M_H__ */

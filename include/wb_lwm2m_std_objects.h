@@ -20,6 +20,52 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @defgroup wb_lwm2m_std_objects Standard Object Factory
+ * @brief Pre-built factory functions for OMA LWM2M standard objects
+ *
+ * This module provides convenient factory functions that create fully
+ * configured `wb_lwm2m_object_def_t` instances for the standard OMA
+ * LWM2M objects. Each factory function:
+ *
+ * 1. Allocates a `wb_lwm2m_object_def_t` on the heap
+ * 2. Populates all mandatory resources with appropriate callbacks
+ * 3. Adds optional resources when the corresponding info field is non-NULL
+ * 4. Returns ownership to the caller (free with wb_lwm2m_destroy_std_object())
+ *
+ * ### Supported Standard Objects
+ *
+ * | Object | ID | Factory Function |
+ * |--------|----|-----------------|
+ * | Security | /0 | wb_lwm2m_create_security_object() |
+ * | Server | /1 | wb_lwm2m_create_server_object() |
+ * | Device | /3 | wb_lwm2m_create_device_object() |
+ * | Connectivity Monitoring | /4 | wb_lwm2m_create_conn_mon_object() |
+ * | Firmware Update | /5 | wb_lwm2m_create_firmware_object() |
+ * | Location | /6 | wb_lwm2m_create_location_object() |
+ * | Connectivity Statistics | /7 | wb_lwm2m_create_conn_stats_object() |
+ *
+ * ### Usage Pattern
+ *
+ * @code{.c}
+ * // Create objects
+ * wb_lwm2m_object_def_t *dev = wb_lwm2m_create_device_object(&dev_info, NULL);
+ * wb_lwm2m_object_def_t *srv = wb_lwm2m_create_server_object(&srv_info, 0, NULL, NULL, NULL);
+ *
+ * // Register with client
+ * wb_lwm2m_add_object(client, dev);
+ * wb_lwm2m_add_object(client, srv);
+ *
+ * // ... use client ...
+ *
+ * // Cleanup
+ * wb_lwm2m_destroy_std_object(dev);
+ * wb_lwm2m_destroy_std_object(srv);
+ * @endcode
+ *
+ * @{
+ */
+
 #ifndef __WB_LWM2M_STD_OBJECTS_H__
 #define __WB_LWM2M_STD_OBJECTS_H__
 
@@ -32,6 +78,14 @@ extern "C" {
 /* ────────────────────────────────────────────────────────
  *  Security Object (/0)
  * ──────────────────────────────────────────────────────── */
+
+/**
+ * @brief Configuration for the LWM2M Security Object (/0)
+ *
+ * Contains all parameters needed to create a Security Object instance.
+ * The Security Object defines the keying material and server URI used
+ * to establish the DTLS session with the LWM2M server.
+ */
 
 typedef struct {
     const char *server_uri;             /**< LWM2M Server URI (mandatory) */
@@ -59,6 +113,14 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_security_object(const wb_lwm2m_security_i
 /* ────────────────────────────────────────────────────────
  *  Server Object (/1)
  * ──────────────────────────────────────────────────────── */
+
+/**
+ * @brief Configuration for the LWM2M Server Object (/1)
+ *
+ * Defines the server registration parameters: lifetime, binding mode,
+ * and notification behavior. The Short Server ID must match the value
+ * used in the corresponding Security Object.
+ */
 
 typedef struct {
     uint16_t short_server_id;           /**< Short Server ID (must match Security obj) */
@@ -89,6 +151,18 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_server_object(const wb_lwm2m_server_info_
 /* ────────────────────────────────────────────────────────
  *  Device Object (/3)
  * ──────────────────────────────────────────────────────── */
+
+/**
+ * @brief Configuration for the LWM2M Device Object (/3)
+ *
+ * Provides device identity and diagnostic information. Mandatory fields
+ * (manufacturer, model_number, serial_number, binding) are always included.
+ * Optional fields are included only when non-NULL.
+ *
+ * Dynamic resources (battery level, free memory, current time, error code)
+ * are auto-populated by a built-in read callback unless overridden via
+ * the read_cb field.
+ */
 
 typedef struct {
     /* Mandatory */
@@ -132,6 +206,14 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_device_object(const wb_lwm2m_device_info_
  *  Connectivity Monitoring Object (/4)
  * ──────────────────────────────────────────────────────── */
 
+/**
+ * @brief Configuration for the Connectivity Monitoring Object (/4)
+ *
+ * All resource values are provided by the user's read callback.
+ * Typical values include network bearer type, signal strength,
+ * IP addresses, and link quality.
+ */
+
 typedef struct {
     wb_lwm2m_read_cb_t read_cb;         /**< Read callback for all resources (mandatory) */
 } wb_lwm2m_conn_mon_info_t;
@@ -153,6 +235,23 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_conn_mon_object(const wb_lwm2m_conn_mon_i
 /* ────────────────────────────────────────────────────────
  *  Firmware Update Object (/5)
  * ──────────────────────────────────────────────────────── */
+
+/**
+ * @brief Configuration for the Firmware Update Object (/5)
+ *
+ * Enables OTA firmware updates via the LWM2M server. The user provides
+ * callbacks for reading state/result, writing the package URI, and
+ * executing the update.
+ *
+ * ### State Machine
+ *
+ * | State | Value | Transition |
+ * |-------|-------|-----------|
+ * | IDLE | 0 | → DOWNLOADING (on Package URI write) |
+ * | DOWNLOADING | 1 | → DOWNLOADED (download complete) |
+ * | DOWNLOADED | 2 | → UPDATING (on Update execute) |
+ * | UPDATING | 3 | → IDLE (on success or failure) |
+ */
 
 typedef struct {
     wb_lwm2m_read_cb_t read_cb;         /**< Read callback for state/result/pkg info */
@@ -178,6 +277,13 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_firmware_object(const wb_lwm2m_firmware_i
  *  Location Object (/6)
  * ──────────────────────────────────────────────────────── */
 
+/**
+ * @brief Configuration for the Location Object (/6)
+ *
+ * Provides GPS/GNSS position data. The user's read callback must supply
+ * at minimum latitude, longitude, and timestamp (mandatory resources).
+ */
+
 typedef struct {
     wb_lwm2m_read_cb_t read_cb;         /**< Read callback for location data (mandatory) */
 } wb_lwm2m_location_info_t;
@@ -199,6 +305,13 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_location_object(const wb_lwm2m_location_i
 /* ────────────────────────────────────────────────────────
  *  Connectivity Statistics Object (/7)
  * ──────────────────────────────────────────────────────── */
+
+/**
+ * @brief Configuration for the Connectivity Statistics Object (/7)
+ *
+ * Tracks network traffic statistics. The read callback provides counters,
+ * while start/stop execute callbacks control the measurement period.
+ */
 
 typedef struct {
     wb_lwm2m_read_cb_t read_cb;         /**< Read callback for statistics */
@@ -226,6 +339,9 @@ wb_lwm2m_object_def_t *wb_lwm2m_create_conn_stats_object(const wb_lwm2m_conn_sta
 /**
  * @brief Free a standard object definition previously created by wb_lwm2m_create_*
  *
+ * Safe to call with NULL (no-op). Must be called after the client is destroyed,
+ * as the client holds a reference to the object definition.
+ *
  * @param obj  Object definition to free (may be NULL)
  */
 void wb_lwm2m_destroy_std_object(wb_lwm2m_object_def_t *obj);
@@ -233,5 +349,7 @@ void wb_lwm2m_destroy_std_object(wb_lwm2m_object_def_t *obj);
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */ /* end of wb_lwm2m_std_objects group */
 
 #endif /* __WB_LWM2M_STD_OBJECTS_H__ */

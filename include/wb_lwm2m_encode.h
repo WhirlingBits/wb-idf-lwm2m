@@ -5,6 +5,47 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @defgroup wb_lwm2m_encode Encoding Helpers
+ * @brief CoRE Link-Format and SenML-JSON encoding for LWM2M payloads
+ *
+ * This module provides serialization functions used internally by the
+ * LWM2M client and available for direct use by applications:
+ *
+ * ### CoRE Link-Format (RFC 6690)
+ *
+ * Used in the LWM2M Registration request body to advertise available
+ * objects and instances. Produces strings like:
+ * @verbatim
+ *   </1/0>,</3/0>,</5/0>
+ * @endverbatim
+ *
+ * ### SenML-JSON (RFC 8428)
+ *
+ * Used for resource value notifications (Notify) and Read responses.
+ * Content-Format ID: 110 (application/senml+json).
+ *
+ * Produces JSON arrays like:
+ * @code{.json}
+ * [{"bn":"/3/0/","n":"0","vs":"WhirlingBits"}]
+ * [{"bn":"/3/0/","n":"10","v":245760}]
+ * @endcode
+ *
+ * ### Type Mapping
+ *
+ * | LWM2M Type | SenML Key | Example |
+ * |------------|-----------|---------|
+ * | String / CoreLnk | "vs" | `"vs":"hello"` |
+ * | Integer / Time | "v" | `"v":42` |
+ * | UInteger | "v" | `"v":42` |
+ * | Float | "v" | `"v":23.5` |
+ * | Boolean | "vb" | `"vb":true` |
+ * | Opaque | "vd" | `"vd":"AQID"` (base64) |
+ * | Objlink | "vlo" | `"vlo":"3:0"` |
+ *
+ * @{
+ */
+
 #ifndef __WB_LWM2M_ENCODE_H__
 #define __WB_LWM2M_ENCODE_H__
 
@@ -76,5 +117,7 @@ int wb_lwm2m_encode_senml_json_instance(const wb_lwm2m_object_def_t *obj,
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */ /* end of wb_lwm2m_encode group */
 
 #endif /* __WB_LWM2M_ENCODE_H__ */
